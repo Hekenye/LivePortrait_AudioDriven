@@ -2,6 +2,9 @@
 
 ```text
 pretrained_weights
+|
+├── audio_processor
+│   └── tiny.pt
 ├── insightface
 │   └── models
 │       └── buffalo_l

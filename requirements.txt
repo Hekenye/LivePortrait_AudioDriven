@@ -2,3 +2,8 @@
 
 onnxruntime-gpu==1.18.0
 transformers==4.38.0
+accelerate==1.7.0
+torchdiffeq==0.2.5
+einops==0.8.1
+decord==0.6.0
+tensorboard

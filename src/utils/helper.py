@@ -142,7 +142,7 @@ def load_model(ckpt_path, model_config, device, model_type):
     elif model_type == 'stitching_retargeting_module':
         # Special handling for stitching and retargeting module
         config = model_config['model_params']['stitching_retargeting_module_params']
-        checkpoint = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
+        checkpoint = torch.load(ckpt_path, map_location=lambda storage, loc: storage, weights_only=True)
 
         stitcher = StitchingRetargetingNetwork(**config.get('stitching'))
         stitcher.load_state_dict(remove_ddp_dumplicate_key(checkpoint['retarget_shoulder']))
