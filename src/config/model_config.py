@@ -6,6 +6,7 @@ from .base_config import PrintableConfig
 
 KEYPOINTS_FPS = 30
 AUDIO_FPS = 50
+LIP_IDX = [6, 12, 14, 17, 19, 20]    # lip keypoints idx from LivePortrait
 
 
 @dataclass(repr=False)
@@ -20,7 +21,7 @@ class SamplingConfig(PrintableConfig):
 
 @dataclass(repr=False)
 class AnimateNetConfig(PrintableConfig):
-    input_dim: int = 63
+    input_dim: int = 6 * 3   # lip keypoints dim
     aud_cond_dim: int = 384      # whisper tiny feature dim
     num_heads: int = 14
     hidden_dim: int = 64 * num_heads
@@ -35,4 +36,3 @@ class AnimateNetConfig(PrintableConfig):
 class ModelConfig(PrintableConfig):
     animate_net_config = AnimateNetConfig()
     whisper_path: str = "./pretrained_weights/audio_processor/tiny.pt"
-    statistic_path: str = "./data/processed_MEAD/statistic.pt"

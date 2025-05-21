@@ -22,9 +22,8 @@ class InferenceWithAudioConfig(PrintableConfig):
     pretrained_model_path: str = None        # path to the pretrained checkpoint
     device: str = "cuda"                     # device to use
     seed: int = 0
-    cfg_scale: float = 6.5
+    cfg_scale: float = 4.5
     output_fps: int = 30
-    animation_region: Literal["all", "lip", "lip+eye"] = "lip"
     relative_motion: bool = True
 
     ########## misc arguments ##########
@@ -32,3 +31,4 @@ class InferenceWithAudioConfig(PrintableConfig):
     model_config = ModelConfig()
     liveportrait_cfg = InferenceConfig()
     crop_cfg = CropConfig()
+    statistic_path: str = None

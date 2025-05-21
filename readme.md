@@ -129,6 +129,7 @@ python inference_with_audio.py \
   -s assets/examples/source/s9.jpg \
   -d assets/examples/driving/angry.m4a \
   -o generated \
+  --statistic_path your_statistic_path \
   --pretrained_model_path your_model_path
 ```
 

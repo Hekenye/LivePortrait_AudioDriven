@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .config.train_config import TrainingArguments
 from .config.model_config import KEYPOINTS_FPS
 from .utils.flow_matching import FlowMatching, log_normal_sample
-from .modules.animate_network import AnimateNet
+from .modules.animate_network import AnimateNet, filter_lip_region
 from .dataset.train_dataset import ProcessedDataset
 from .utils.misc import MetricStorage
 from .utils.rprint import rlog as log
@@ -75,7 +75,7 @@ class Trainer:
         )
 
         # Init model
-        statistic_path = args.model_config.statistic_path
+        statistic_path = os.path.join(args.dataset_path, "statistic.pt")
         log(f"Using keypoints' statistical information of {statistic_path}")
         model = AnimateNet(
             **asdict(args.model_config.animate_net_config),
@@ -160,10 +160,12 @@ class Trainer:
 
     def forward(self, batch: tuple[torch.Tensor, torch.Tensor]):
         audio, gt_kp = batch
+        # select lip keypoints
+        gt_kp = filter_lip_region(gt_kp)
         audio_feats = self.audio_processor.audio2feat_batch(audio, device=self.device, dtype=torch.float32)
 
         # classifier-free training
-        bs = gt_kp.shape[0]  # (B, N, 63)
+        bs = gt_kp.shape[0]  # (B, N, 6*3)
         samples = torch.rand(bs, device=self.device)
 
         # null mask is for when a video is provided but we decided to ignore it

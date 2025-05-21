@@ -10,6 +10,7 @@ from einops import rearrange
 from dataclasses import asdict
 from safetensors.torch import load_file
 
+from .config.model_config import LIP_IDX
 from .config.inference_with_audio_config import InferenceWithAudioConfig
 from .live_portrait_wrapper import LivePortraitWrapper
 from .utils.cropper import Cropper
@@ -41,7 +42,8 @@ class Generator(object):
         self.fm = FlowMatching(**asdict(args.sampling_config))
 
         # Init model
-        statistic_path = args.model_config.statistic_path
+        statistic_path = args.statistic_path
+        log(f"Using keypoints' statistical information of {statistic_path}")
         model = AnimateNet(
             **asdict(args.model_config.animate_net_config),
             statistic_path=statistic_path,
@@ -64,7 +66,6 @@ class Generator(object):
         """Main inference pipeline"""
         source_image_path = self.args.source
         driving_audio_path = self.args.driving
-        animation_region = self.args.animation_region
         relative_motion = self.args.relative_motion
         output_dir = self.args.output_dir
         output_fps = self.args.output_fps
@@ -79,7 +80,7 @@ class Generator(object):
 
         # Step 3: Predict keypoint sequences
         raw_pred_motions = self.predict_keypoints_motions(audio_feats)
-        pred_motions = self.apply_motion_mask(raw_pred_motions, animation_region, relative_motion)
+        pred_motions = self.apply_motion_mask(raw_pred_motions, relative_motion)
 
         # Step 4: Generate frames using LivePortrait
         I_p_lst = self.generate_frames(cropped_frame, pred_motions)
@@ -133,20 +134,16 @@ class Generator(object):
         x1 = self.fm.to_data(cfg_ode_wrapper, x0)
         x1 = self.model.unnormalize(x1)
 
-        pred_motions = rearrange(x1, 'b f (n d) -> (b f) n d', b=N_segment, f=self.model.latent_seq_len, n=21, d=3)
+        pred_motions = rearrange(x1, 'b f (n d) -> (b f) n d', b=N_segment, f=self.model.latent_seq_len, n=6, d=3)
         return pred_motions
 
-    def apply_motion_mask(self, pred_motions, animation_region="all", relative_motion=True):
+    def apply_motion_mask(self, pred_motions, relative_motion=True):
         """
         Apply motion mask and optionally convert to relative motion.
 
         Args:
             pred_motions (torch.Tensor): Predicted motions of shape [T, N, D], where
-                                        T = total frames, N = keypoint count (21), D = dim (3)
-            mode (str): Motion mode, can be one of:
-                        - "all": use all keypoints
-                        - "lip": only lip keypoints
-                        - "lip+eye": lip + eye keypoints
+                                        T = total frames, N = keypoint count (6), D = dim (3)
             relative_motion (bool): Whether to use relative motion (w.r.t. first frame)
 
         Returns:
@@ -154,30 +151,18 @@ class Generator(object):
                         If relative_motion is True, returns delta from first frame.
         """
         # keypoints index
-        lip_idx = [6, 12, 14, 17, 19, 20]
-        eyes_idx = [11, 13, 15, 16, 18]
-
         if relative_motion:
             reference = pred_motions[0].unsqueeze(0)  # [1, N, D]
             pred_motions = pred_motions - reference   # delta motion related to the first frame
 
         # zero template
-        zero_motions = torch.zeros_like(pred_motions)
-
-        if animation_region == "all":
-            return pred_motions
-
-        elif animation_region == "lip":
-            zero_motions[:, lip_idx] = pred_motions[:, lip_idx]
-            return zero_motions
-
-        elif animation_region == "lip+eye":
-            zero_motions[:, lip_idx] = pred_motions[:, lip_idx]
-            zero_motions[:, eyes_idx] = pred_motions[:, eyes_idx]
-            return zero_motions
-
-        else:
-            raise ValueError(f"Unsupported mode: {animation_region}. Choose from ['all', 'lip', 'lip+eye']")
+        zero_motions = torch.zeros(
+            size = (pred_motions.shape[0], 21, 3),
+            device = pred_motions.device,
+            dtype = pred_motions.dtype,
+        )
+        zero_motions[:, LIP_IDX] = pred_motions
+        return zero_motions
 
     def generate_frames(self, crooped_src_image, pred_motions):
         """Use LivePortrait to generate animated frames based on predicted keypoints"""

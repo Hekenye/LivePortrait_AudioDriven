@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..config.model_config import LIP_IDX
 from .rotary_embeddings import compute_rope_rotations
 from .util import MLP, ChannelLastConv1d, ConvMLP
 from .transformer_layers import (FinalBlock, JointBlock, MMDitSingleBlock)
@@ -58,6 +59,18 @@ class TimestepEmbedder(nn.Module):
         t_freq = self.timestep_embedding(t).to(t.dtype)
         t_emb = self.mlp(t_freq)
         return t_emb
+
+
+def filter_lip_region(keypoints: torch.Tensor):
+    original_shape = keypoints.shape
+    D = original_shape[-1]
+    x_reshaped = keypoints.view(*original_shape[:-1], -1, 3)
+
+    lip_idx_tensor = torch.tensor(LIP_IDX, device=keypoints.device, dtype=torch.long)
+    x_lips = x_reshaped.index_select(-2, lip_idx_tensor)  # [*, len(lip_idx), 3]
+
+    output = x_lips.view(*x_lips.shape[:-2], -1)
+    return output
 
 
 @dataclass
@@ -133,8 +146,8 @@ class AnimateNet(nn.Module):
 
 
         statistic = torch.load(statistic_path, weights_only=True)
-        latent_mean = statistic["mean"]
-        latent_std = statistic["std"]
+        latent_mean = filter_lip_region(statistic["mean"])
+        latent_std = filter_lip_region(statistic["std"])
 
         self.latent_mean = nn.Parameter(latent_mean.view(1, 1, -1), requires_grad=False)
         self.latent_std = nn.Parameter(latent_std.view(1, 1, -1), requires_grad=False)

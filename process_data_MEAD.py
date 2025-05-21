@@ -105,33 +105,32 @@ class Processor:
         vr = VideoReader(video_path)
         frames = []
 
-        # read frame and crop face region
+        # read frame
         for frame_idx in range(len(vr)):
             frame = vr[frame_idx].asnumpy()
-            crop_result = self.cropper.crop_source_image(frame, self.cropper.crop_cfg)
-            if crop_result is None:
-                log(f"No face detected in a frame from {video_path}. Skipping.")
-                return None
-            cropped_frame = crop_result['img_crop_256x256']
-            tensor_frame = self.image_transform(cropped_frame)
-            frames.append(tensor_frame)
+            frames.append(frame)
 
         if not frames:
             log(f"No valid frames with face detected in video: {video_path}")
             return None
 
+        # crop face region
+        ret_d = self.cropper.crop_driving_video(frames, dsize=256)
+        tensor_input = []
+        for cropped_frame in ret_d["frame_crop_lst"]:
+            tensor_input.append(self.image_transform(cropped_frame))
+
         # extract keypoints
-        frames_tensor = torch.stack(frames, dim=0).to(self.device)
+        tensor_input = torch.stack(tensor_input, dim=0).to(self.device)
         batch_size = 160
         keypoints_deltas = []
 
-        for i in range(0, len(frames_tensor), batch_size):
-            batch = frames_tensor[i:i + batch_size]
+        for i in range(0, len(tensor_input), batch_size):
+            batch = tensor_input[i:i + batch_size]
             output = self.motion_extractor(batch)
             keypoints_deltas.append(output["exp"])
 
         return torch.cat(keypoints_deltas, dim=0)
-
 
     @torch.inference_mode()
     def run(self, output_dir: str):
